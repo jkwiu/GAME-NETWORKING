@@ -151,3 +151,108 @@
             2. Checksum
                1. 조금만 변경되어도 Hash가 많이 바뀜. 바뀌면 종료
             3. 코드 암호화  
+9. Server Authority
+   1. 질의, 응답, 알림
+   2. 예전엔 질의 후 응답하면 바로 끊었으나, 요즘은 Long polling방식으로 일정시간 connection을 유지한다. 
+   3. MMORPG에서 많이 사용
+      1. 동접수가 많다.(10K 서버: 동시접속자 만명을 핸들링 할 수 있는 서버)
+      2. lol은 한 session의 동접 10명
+   4. 단점
+      1. 서버가 모든 클라이언트를 관리해야 한다.(로직이 필요)
+10. Socket Programming
+    1. 예전에는 프로그래머들이 hardware에 직접 붙었다.(windows, mac 이전 시대)
+       1. hardware별로 다르게 프로그래밍해야 했다.
+          1. HAL
+             1. OS에서 제공하는 추상화된 layer
+             2. adapting 패턴
+       2. hardware와 os의 연결을 프로그래밍하는 것이 Socket Programming
+    2. Socket I/O 
+       1. Read & Write  
+          1. 동기식
+             1. 응답이 올 때까지 thread가 멈추기 때문에 서버에서 잘 쓰지 않는다.
+          2. 비동기식
+             1. Select 방식(pre-request 방식)
+                1. 일의 주체가 나
+                2. 간단하게 구현 가능(connection수가 100개 이하일 때 좋다)
+             2. IOCP 방식(post-request 방식)
+                1. 일의 주체는 대리인
+                2. 성능이 좋다.(connection수가 100개 이상일 때 좋다)
+          3. 그런데 요즘은 언어자체에서 네트워크 기능을 잘 지원해주기 때문에 IOCP인지 select인지 알 필요 없다.
+11. MMORPG 서버 구조1
+    1. 유저가 많다. -> 작업량이 많다.(Actor -> Player, NPC, Control Zone)
+    2. 조건
+       1. 패킷 처리가 필요하다.(Read/Write)
+       2. Tick 작업(매초 player의 이동 처리) 
+       3. 그 외 시스템
+    3. 그래서 멀티 쓰레드가 필수다. 코어 당 100ms, 4코어면 400ms를 확보
+    4. 좋은 서버 구조로 만들어져있으면 multi threading하기 좋다.
+    5. 서버 구조
+       1. 싱글 스레드
+          1. Network I/O -> Queue -> WorkThread
+          2. Network I/O(요청 queue를 쌓고)
+             1. Select
+             2. IOCP
+          3. WorkThread(요청을 처리하고 actor의 tick을 돌고 다음 처리)
+          4. 장점
+             1. 단순하다.
+          5. 단점
+             1. 시간을 확보하기 어렵다.
+             2. 많은 Actor를 처리하기 어렵다
+             3. 3000 ~ 4000명까지의 동접
+          6. 과거에 MMORPG가 많이 사용했다.
+       2. 싱글 스레드 + Dedicated Thread(상점일, 거래소 일, 결투장 등)
+          1. 기존 싱글 스레드 방식에 특정한 일을 하는 스레드들을 추가
+       3. 멀티 스레드
+          1. Network I/O -> Queue -> WorkThread(MultiThread)
+    6. 멀티 쓰레드 vs 멀티 프로세스
+       1. 멀티 쓰레드
+          1. 하나의 프로세스에서 쓰레드를 여러개 나눠서 각각을 따로 동작하는 것
+          2. 같은 프로세스기 때문에 서로의 메모리를 공유하기 때문에 서로의 메모리를 망칠 수 있다.
+       2. 멀티 프로세스
+          1. 하나의 컴퓨터에 여러 프로세스를 띄우는 것
+          2. 프로세스마다 독립된 메모리를 갖고 있어 서로 망치지 않는다.
+          3. Process가 다르면 서로 상호작용할 수 없다.
+12. MMORPG 서버구조2(싱글프로세스 vs 멀티프로세스)
+    1. 와우에서 각 월드가 하나의 게임 서버로 돌아간다. -> 싱글 프로세스 
+    2. 여러 서버들이 하나의 서버를 구성한다. -> 멀티 프로세스
+    3. 싱글 프로세스
+       1. Scale Up
+          1. 하나의 Machine의 성능을 올린다.
+          2. 비용이 성능에 따라 y=ax<sup>2^</sup>으로 증가(비용⬆)
+       2. But 공짜 점심은 끝났다.
+       3. Availability(가용성)⬇
+          1. 서버가 죽으면 서비스가 종료
+       4. 관리가 쉽다
+    4. 멀티 프로세스
+       1. Scale Out
+          1. Machine을 늘린다.
+          2. 비용이 성능에 따라 y=ax로 증가(비용⬇)
+       2. Availability(가용성)⬆
+          1. 서버가 죽어도 서비스가 종료되지 않는다.
+       3. 관리가 어렵다
+    5. 서버를 나누는 방법
+       1. Zone 방식(와우에서 대륙과 대륙)
+          1. 대륙 넘어갈 때 로딩
+       2. 채널 방식 
+          1. 대도시
+             1. 채널
+       3. Zone 방식 + 채널 방식
+    6. 프로세스 관리가 중요하다.
+13. MMORPG 서버구조3
+    1. 멀티 쓰레드의 구획화
+       1. Actor 기준(Akka: scala에서 제공하는 framework) 
+          1. Actor별로 따로 스레드.
+          2. Actor간의 통신은 Message를 통해서 
+       2. System 기준(ECS구조: Entity Component System)
+          1. Entity(Component를 갖고 있다.)
+             1. 케릭터
+          2. Component(상태)
+             1. 상태를 갖고 있으나 기능을 갖고 있지 않다.(Class가 아니다)  
+             2. Flying(data)
+             3. Attack(data)
+             4. Moving(data)
+          3. System(기능)
+             1. Flying(function)
+          4. 장점
+             1. 확장성이 좋다.
+             2. Locallity가 좋다.(data가 모여있다.)
